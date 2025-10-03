@@ -29,7 +29,7 @@
       <content>
         <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
                <children>
-                  <Button fx:id="simularButton" layoutX="14.0" layoutY="14.0" mnemonicParsing="false" onAction="#simularDados" text="Simular Dados" />
+                  <Button fx:id="simulaButton" layoutX="14.0" layoutY="14.0" mnemonicParsing="false" onAction="#simularDados" text="Simular Dados" />
                   <Button fx:id="excluirTodosButton" layoutX="14.0" layoutY="53.0" mnemonicParsing="false" onAction="#excluirTodos" text="Excluir Todos" />
                </children></AnchorPane>
       </content>
