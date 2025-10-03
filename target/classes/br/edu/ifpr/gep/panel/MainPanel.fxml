@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.layout.AnchorPane?>
+
+<TabPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" tabClosingPolicy="UNAVAILABLE" xmlns="http://javafx.com/javafx/24.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="br.edu.ifpr.gep.panel.PanelController">
+  <tabs>
+      <Tab text="Geral">
+        <content>
+          <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+               <children>
+                  <TableView fx:id="tableView" prefHeight="373.0" prefWidth="600.0">
+                    <columns>
+                      <TableColumn fx:id="colPortaria" prefWidth="75.0" text="Portaria" />
+                      <TableColumn fx:id="colEmissor" prefWidth="75.0" text="Emissor" />
+                      <TableColumn fx:id="colNumero" prefWidth="75.0" text="Número" />
+                      <TableColumn fx:id="colPublicacao" prefWidth="115.0" text="Publicação" />
+                      <TableColumn fx:id="colNome" prefWidth="259.0" text="Nome" />
+                    </columns>
+                  </TableView>
+               </children>
+          </AnchorPane>
+        </content>
+      </Tab>
+    <Tab text="Ferramentas">
+      <content>
+        <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+               <children>
+                  <Button fx:id="simularButton" layoutX="14.0" layoutY="14.0" mnemonicParsing="false" onAction="#simularDados" text="Simular Dados" />
+                  <Button fx:id="excluirTodosButton" layoutX="14.0" layoutY="53.0" mnemonicParsing="false" onAction="#excluirTodos" text="Excluir Todos" />
+               </children>
+        </AnchorPane>
+      </content>
+    </Tab>
+  </tabs>
+</TabPane>

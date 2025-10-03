@@ -1,0 +1,11 @@
+.button {
+    -fx-background-color: #000000; /* Black */
+    -fx-text-fill: white; /* White text */
+    -fx-font-size: 12px;
+    -fx-background-radius: 0; /* Slightly rounded corners */
+    -fx-padding: 10 20 10 20; /* Padding */
+}
+
+.button:hover {
+    -fx-background-color: #333333; /* Darker on hover */
+}
