@@ -6,28 +6,34 @@ import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import br.edu.ifpr.gep.model.utils.EmissorTypes;
+
+/**
+ * Classe que representa uma Portaria no sistema.
+ * Contém informações sobre o emissor, número, data de publicação e membro relacionado.
+ */
 public class Portaria {
-    private String emissor;
-    private Integer numero;  // Sem acento
-    private LocalDate publicacao;  // Sem acento
-    private String membro;
+    private EmissorTypes emissor;   // Agora utiliza o Enum EmissorTypes
+    private Integer numero;         // Número da Portaria
+    private LocalDate publicacao;   // Data da publicação
+    private String membro;          // Nome do membro associado
 
     public Portaria() {}
 
     @JsonCreator
-    public Portaria(@JsonProperty("emissor") String emissor,
+    public Portaria(@JsonProperty("emissor") Integer emissor,
                     @JsonProperty("numero") Integer numero,
                     @JsonProperty("publicacao") LocalDate publicacao,
                     @JsonProperty("membro") String membro) {
-        this.emissor = emissor;
+        this.emissor = EmissorTypes.fromValue(emissor); // Converte número em Enum
         this.numero = numero;
         this.publicacao = publicacao;
         this.membro = membro;
     }
 
-    // Getters e Setters sem acentos
-    public String getEmissor() { return emissor; }
-    public void setEmissor(String emissor) { this.emissor = emissor; }
+    // Getters e Setters
+    public EmissorTypes getEmissor() { return emissor; }
+    public void setEmissor(EmissorTypes emissor) { this.emissor = emissor; }
 
     public Integer getNumero() { return numero; }
     public void setNumero(Integer numero) { this.numero = numero; }
@@ -40,8 +46,10 @@ public class Portaria {
 
     @Override
     public String toString() {
-        return "Portaria[emissor=" + emissor + ", numero=" + numero +
-                ", publicacao=" + publicacao + ", membro=" + membro + "]";
+        return "Portaria[emissor=" + (emissor != null ? emissor.nome() : null) +
+                ", numero=" + numero +
+                ", publicacao=" + publicacao +
+                ", membro=" + membro + "]";
     }
 
     @Override
