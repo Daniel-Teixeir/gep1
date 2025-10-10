@@ -46,7 +46,7 @@ public class Portaria {
 
     @Override
     public String toString() {
-        return "Portaria[emissor=" + (emissor != null ? emissor.nome() : null) +
+        return "Portaria[emissor=" + (emissor != null ? emissor.getNome() : null) +
                 ", numero=" + numero +
                 ", publicacao=" + publicacao +
                 ", membro=" + membro + "]";

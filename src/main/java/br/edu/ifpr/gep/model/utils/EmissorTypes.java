@@ -1,22 +1,49 @@
 package br.edu.ifpr.gep.model.utils;
 
-/**
- * Classe que representa os emissores de portarias do IFPR.
- * Cada emissor possui um índice numérico e um nome amigável para exibição.
- * Suporte a adição dinâmica de novos emissores.
- */
+import br.edu.ifpr.gep.model.repository.EmissorRepository;
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Classe que representa os emissores de portarias do IFPR,
+ * com suporte a persistência em arquivo JSON.
+ */
 public class EmissorTypes {
     private static final List<EmissorTypes> VALUES = new ArrayList<>();
+    private static boolean initialized = false;
 
-    static {
-        // Inicialização com os emissores pré-definidos
+    private final int index;
+    private final String nome;
+
+    @JsonCreator
+    public EmissorTypes(@JsonProperty("index") int index, @JsonProperty("nome") String nome) {
+        this.index = index;
+        this.nome = nome;
+    }
+
+    /** Inicializa os emissores padrão e carrega do JSON */
+    public static void initialize() {
+        if (initialized) return;
+        initialized = true;
+
+        // Carrega emissores do arquivo JSON
+        List<EmissorTypes> loaded = EmissorRepository.INSTANCE.load();
+        if (loaded.isEmpty()) {
+            // Se não existir arquivo, usa a lista padrão inicial
+            carregarPadrao();
+            salvar();
+        } else {
+            VALUES.addAll(loaded);
+        }
+    }
+
+    private static void carregarPadrao() {
+        VALUES.clear();
         VALUES.add(new EmissorTypes(1, "Reitoria"));
         VALUES.add(new EmissorTypes(2, "Pró-Reitoria de Ensino"));
         VALUES.add(new EmissorTypes(3, "Pró-Reitoria de Administração"));
@@ -53,22 +80,46 @@ public class EmissorTypes {
         VALUES.add(new EmissorTypes(33, "Campus União da Vitória (DG)"));
     }
 
-    private final int index;
-    private final String nome;
-
-    private EmissorTypes(int index, String nome) {
-        this.index = index;
-        this.nome = nome;
+    public static void salvar() {
+        EmissorRepository.INSTANCE.save(VALUES);
     }
 
     public static EmissorTypes add(String nome) {
+        initialize(); // garante que está carregado
         if (nome == null || nome.trim().isEmpty()) {
             throw new IllegalArgumentException("Nome do emissor não pode ser vazio.");
         }
         int nextIndex = VALUES.stream().mapToInt(e -> e.index).max().orElse(0) + 1;
         EmissorTypes newEmissor = new EmissorTypes(nextIndex, nome.trim());
         VALUES.add(newEmissor);
+        salvar();
         return newEmissor;
+    }
+
+    public static List<EmissorTypes> values() {
+        initialize();
+        return new ArrayList<>(VALUES);
+    }
+
+    public static EmissorTypes fromValue(int index) {
+        initialize();
+        return VALUES.stream()
+                .filter(type -> type.index == index)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Nenhum emissor para índice " + index));
+    }
+
+    public static EmissorTypes fromName(String name) {
+        initialize();
+        if (name == null || name.trim().isEmpty()) return null;
+        String normName = normalize(name);
+        for (EmissorTypes type : VALUES) {
+            String normType = normalize(type.nome);
+            if (normType.equals(normName)) {
+                return type;
+            }
+        }
+        return null;
     }
 
     private static String normalize(String input) {
@@ -78,52 +129,12 @@ public class EmissorTypes {
         return normalized.toLowerCase().trim();
     }
 
-    public static EmissorTypes fromName(String name) {
-        if (name == null || name.trim().isEmpty()) return null;
-        String normName = normalize(name);
-        for (EmissorTypes type : values()) {
-            String normType = normalize(type.nome);
-            if (normType.equals(normName)) {
-                return type;
-            }
-        }
-        return null;
-    }
-
-    public static EmissorTypes valueOf(String upper) {
-        return null;
-    }
-
-    /** Retorna o índice numérico associado ao emissor */
     public int getIndex() { return index; }
-    /** Retorna o nome completo do emissor */
     public String getNome() { return nome; }
 
-    /**
-     * Localiza um emissor pelo índice numérico.
-     * @param index código numérico do emissor
-     * @return a instância correspondente
-     * @throws IllegalArgumentException se não houver emissor associado
-     */
-    public static EmissorTypes fromValue(int index) {
-        return VALUES.stream()
-                .filter(type -> type.index == index)
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Nenhum emissor para índice " + index));
-    }
-
-    public static List<EmissorTypes> values() {
-        return new ArrayList<>(VALUES);
-    }
-
-    @JsonValue
-    public String toJson() {
-        return nome;
-    }
-
-    @JsonCreator
-    public static EmissorTypes create(String value) {
-        return fromName(value);
+    @Override
+    public String toString() {
+        return nome + " (" + index + ")";
     }
 
     public int compareTo(EmissorTypes emissor) {

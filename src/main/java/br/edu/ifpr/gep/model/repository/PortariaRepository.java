@@ -6,13 +6,17 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.KeyDeserializer;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import br.edu.ifpr.gep.model.Portaria;
+import br.edu.ifpr.gep.model.repository.PortariaPK;
 import br.edu.ifpr.gep.model.utils.EmissorTypes;
 
 /**
@@ -27,22 +31,27 @@ public class PortariaRepository {
     private final Map<PortariaPK, Portaria> portarias = new HashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final File dataFile = new File("portarias.json");
+    private final PortariaPKKeyDeserializer keyDeserializer = new PortariaPKKeyDeserializer();
 
     /**
      * Construtor privado para singleton.
      * Configura Jackson e carrega dados do JSON.
      */
     private PortariaRepository() {
-        // Registrar KeyDeserializer para PortariaPK
-        SimpleModule module = new SimpleModule();
-        module.addKeyDeserializer(PortariaPK.class, new PortariaPKKeyDeserializer());
-        objectMapper.registerModule(module);
-
         // Registrar módulo para LocalDate
         objectMapper.registerModule(new JavaTimeModule());
 
         // Configurar para serializar LocalDate corretamente
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        // Configurar para ignorar erros de serialização de beans vazios
+        objectMapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+
+        // Registrar serializador/deserializador personalizado para EmissorTypes
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(EmissorTypes.class, new EmissorTypesSerializer());
+        module.addDeserializer(EmissorTypes.class, new EmissorTypesDeserializer());
+        objectMapper.registerModule(module);
 
         System.out.println("Iniciando repositório... Arquivo JSON: " + dataFile.getAbsolutePath());
         loadData();
@@ -59,108 +68,44 @@ public class PortariaRepository {
         }
 
         try {
-            // Carrega como Map<String, Map<String, Object>> raw para parsing manual
-            TypeReference<Map<String, Map<String, Object>>> typeRef = new TypeReference<Map<String, Map<String, Object>>>() {};
-            Map<String, Map<String, Object>> rawData = objectMapper.readValue(dataFile, typeRef);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> loaded = objectMapper.readValue(dataFile, Map.class);
 
-            int loadedCount = 0;
-            for (Map.Entry<String, Map<String, Object>> entry : rawData.entrySet()) {
+            for (Map.Entry<String, Object> entry : loaded.entrySet()) {
                 String keyStr = entry.getKey();
-                Map<String, Object> rawPortaria = entry.getValue();
+                Object valueObj = entry.getValue();
 
+                // Desserializar a chave usando o KeyDeserializer
+                PortariaPK pk;
                 try {
-                    // Parse key to PK
-                    PortariaPK pk = (PortariaPK) new PortariaPKKeyDeserializer().deserializeKey(keyStr, null);
-
-                    // Parse Portaria
-                    Object emissorObj = rawPortaria.get("emissor");
-                    Integer emissorIndex;
-                    if (emissorObj instanceof String) {
-                        String emissorStr = (String) emissorObj;
-                        emissorIndex = mapLegacyEmissor(emissorStr);
-                    } else if (emissorObj instanceof Integer) {
-                        emissorIndex = (Integer) emissorObj;
-                    } else {
-                        System.err.println("Tipo de emissor inválido em " + keyStr + ": " + emissorObj);
-                        continue;
-                    }
-
-                    Integer numero = (Integer) rawPortaria.get("numero");
-                    if (numero == null) {
-                        System.err.println("Número ausente em " + keyStr);
-                        continue;
-                    }
-
-                    Object pubObj = rawPortaria.get("publicacao");
-                    LocalDate publicacao;
-                    if (pubObj instanceof String) {
-                        String pubStr = ((String) pubObj).trim();
-                        if (pubStr.isEmpty()) {
-                            System.err.println("Data de publicação vazia em " + keyStr + ", pulando.");
-                            continue;
-                        }
-                        publicacao = LocalDate.parse(pubStr);
-                    } else {
-                        System.err.println("Formato de data inválido em " + keyStr + ": " + pubObj);
-                        continue;
-                    }
-
-                    String membro = (String) rawPortaria.get("membro");
-                    if (membro == null || membro.trim().isEmpty()) {
-                        System.err.println("Membro ausente ou vazio em " + keyStr);
-                        continue;
-                    }
-
-                    Portaria portaria = new Portaria(emissorIndex, numero, publicacao, membro.trim());
-                    portarias.put(pk, portaria);
-                    loadedCount++;
+                    pk = (PortariaPK) keyDeserializer.deserializeKey(keyStr, null);
                 } catch (Exception e) {
-                    System.err.println("Erro ao processar entrada " + keyStr + ": " + e.getMessage());
+                    System.err.println("Erro ao processar chave '" + keyStr + "': " + e.getMessage());
+                    continue;
                 }
-            }
-            System.out.println("Carregadas " + loadedCount + " portarias válidas de " + rawData.size() + " entradas totais.");
-        } catch (IOException e) {
-            System.err.println("Erro ao ler JSON: " + e.getMessage());
-            portarias.clear();
-        }
-    }
 
-    /**
-     * Mapeia emissores legacy (strings) para índices do enum.
-     */
-    private Integer mapLegacyEmissor(String emissorStr) {
-        if (emissorStr == null) return 1;
-        String upper = emissorStr.toUpperCase().trim();
-        try {
-            EmissorTypes e = EmissorTypes.valueOf(upper);
-            return e.index();
-        } catch (IllegalArgumentException e) {
-            // Fallback para códigos curtos legacy
-            switch (upper) {
-                case "MPF":
-                    return 5;
-                case "MEC":
-                    return 1;
-                case "IFPR":
-                    return 1;
-                case "MJ":
-                    return 1;
-                case "MINC":
-                    return 3;
-                case "UFPR":
-                    return 1;
-                case "UTFPR":
-                    return 1;
-                case "UNICAMP":
-                    return 1;
-                case "UEL":
-                    return 1;
-                case "UFRGS":
-                    return 1;
-                default:
-                    System.err.println("Emissor desconhecido '" + emissorStr + "', usando 1 (Reitoria)");
-                    return 1;
+                // Desserializar o valor como Portaria
+                Portaria portaria;
+                portaria = objectMapper.convertValue(valueObj, Portaria.class);
+
+                if (portaria.getEmissor() == null) {
+                    System.err.println("Emissor nulo para chave '" + keyStr + "'. Pulando.");
+                    continue;
+                }
+
+                // Verificar se o emissor na PK corresponde ao da Portaria
+                if (!pk.getEmissor().equals(portaria.getEmissor().getName())) {
+                    System.err.println("Inconsistência de emissor na chave '" + keyStr + "'. Pulando.");
+                    continue;
+                }
+
+                portarias.put(pk, portaria);
             }
+
+            System.out.println("Carregadas " + portarias.size() + " portarias válidas de " + loaded.size() + " entradas totais.");
+        } catch (IOException e) {
+            System.err.println("Erro ao carregar dados do JSON: " + e.getMessage());
+            portarias.clear(); // Inicia vazio em caso de erro
         }
     }
 
@@ -170,7 +115,8 @@ public class PortariaRepository {
      */
     private void saveData() {
         try {
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(dataFile, portarias);
+            objectMapper.writeValue(dataFile, portarias);
+            System.out.println("Dados salvos no JSON: " + portarias.size() + " portarias.");
         } catch (IOException e) {
             System.err.println("Erro ao salvar dados no JSON: " + e.getMessage());
         }
@@ -182,13 +128,19 @@ public class PortariaRepository {
      * Salva no JSON após inserção.
      */
     public boolean insert(Portaria portaria) {
+        if (portaria.getEmissor() == null) {
+            System.err.println("Emissor nulo na inserção. Operação cancelada.");
+            return false;
+        }
+
         PortariaPK pk = new PortariaPK(
-                portaria.getEmissor().nome(), // usa o nome amigável como chave
+                portaria.getEmissor().getNome(),
                 portaria.getNumero(),
                 portaria.getPublicacao().getYear()
         );
 
         if (portarias.containsKey(pk)) {
+            System.err.println("Portaria já existe: " + pk);
             return false; // Já existe
         }
 
@@ -199,8 +151,13 @@ public class PortariaRepository {
 
     /** Atualiza uma portaria existente */
     public boolean update(Portaria portaria) {
+        if (portaria.getEmissor() == null) {
+            System.err.println("Emissor nulo na atualização. Operação cancelada.");
+            return false;
+        }
+
         PortariaPK pk = new PortariaPK(
-                portaria.getEmissor().nome(),
+                portaria.getEmissor().getNome(),
                 portaria.getNumero(),
                 portaria.getPublicacao().getYear()
         );
@@ -213,8 +170,9 @@ public class PortariaRepository {
     }
 
     /** Deleta uma portaria pela chave */
-    public boolean delete(String emissor, Integer numero, Integer ano) {
-        boolean removed = portarias.remove(new PortariaPK(emissor, numero, ano)) != null;
+    public boolean delete(String emissorNome, Integer numero, Integer ano) {
+        PortariaPK pk = new PortariaPK(emissorNome, numero, ano);
+        boolean removed = portarias.remove(pk) != null;
         if (removed) {
             saveData(); // Salva após deleção
         }
@@ -230,8 +188,9 @@ public class PortariaRepository {
     }
 
     /** Busca uma portaria pela chave */
-    public Optional<Portaria> findPortaria(String emissor, Integer numero, Integer ano) {
-        return Optional.ofNullable(portarias.get(new PortariaPK(emissor, numero, ano)));
+    public Optional<Portaria> findPortaria(String emissorNome, Integer numero, Integer ano) {
+        PortariaPK pk = new PortariaPK(emissorNome, numero, ano);
+        return Optional.ofNullable(portarias.get(pk));
     }
 
     /** Retorna todas as portarias */
@@ -242,7 +201,10 @@ public class PortariaRepository {
     /** Busca por emissor */
     public List<Portaria> findByEmissor(String emissor, boolean strict) {
         return portarias.values().stream()
-                .filter(p -> search(p.getEmissor().nome(), emissor, strict))
+                .filter(p -> {
+                    if (p.getEmissor() == null) return false;
+                    return search(p.getEmissor().getNome(), emissor, strict);
+                })
                 .collect(Collectors.toList());
     }
 
@@ -284,5 +246,49 @@ public class PortariaRepository {
     private boolean search(String field, String value, boolean strict) {
         if (field == null || value == null) return false;
         return strict ? field.equalsIgnoreCase(value) : field.toLowerCase().contains(value.toLowerCase());
+    }
+
+    /**
+     * Serializador personalizado para EmissorTypes.
+     */
+    private static class EmissorTypesSerializer extends StdSerializer<EmissorTypes> {
+        public EmissorTypesSerializer() {
+            this(null);
+        }
+
+        public EmissorTypesSerializer(Class<EmissorTypes> t) {
+            super(t);
+        }
+
+        @Override
+        public void serialize(EmissorTypes value, com.fasterxml.jackson.core.JsonGenerator gen, com.fasterxml.jackson.databind.SerializerProvider provider) throws IOException {
+            if (value != null) {
+                gen.writeString(value.getNome());
+            } else {
+                gen.writeNull();
+            }
+        }
+    }
+
+    /**
+     * Deserializador personalizado para EmissorTypes.
+     */
+    private static class EmissorTypesDeserializer extends StdDeserializer<EmissorTypes> {
+        public EmissorTypesDeserializer() {
+            this(null);
+        }
+
+        public EmissorTypesDeserializer(Class<?> vc) {
+            super(vc);
+        }
+
+        @Override
+        public EmissorTypes deserialize(com.fasterxml.jackson.core.JsonParser p, com.fasterxml.jackson.databind.DeserializationContext ctxt) throws IOException {
+            String name = p.getValueAsString();
+            if (name == null || name.trim().isEmpty()) {
+                return null;
+            }
+            return EmissorTypes.fromName(name);
+        }
     }
 }

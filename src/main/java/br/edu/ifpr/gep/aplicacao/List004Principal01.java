@@ -7,6 +7,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.TabPane;
 import javafx.stage.Stage;
 
+import java.net.URL;
 import java.io.IOException;
 
 /**
@@ -18,8 +19,16 @@ public class List004Principal01 extends Application {
     @Override
     public void start(Stage primaryStage) {
         try {
+            // Debug: Verifica se o FXML existe no classpath
+            URL fxmlUrl = getClass().getResource("/br/edu/ifpr/gep/view/MainPanel.fxml");
+            System.out.println("URL do FXML: " + fxmlUrl);  // Imprime no console: se null, problema de localização
+            if (fxmlUrl == null) {
+                showAlert(Alert.AlertType.ERROR, "Erro Crítico", "Arquivo FXML não encontrado no caminho: /br/edu/ifpr/gep/view/MainPanel.fxml");
+                return;  // Sai sem crashar
+            }
+
             // Carrega o painel principal
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/br/edu/ifpr/gep/view/MainPanel.fxml"));
+            FXMLLoader loader = new FXMLLoader(fxmlUrl);
             TabPane root = loader.load();
 
             // Cena com dimensões ajustadas
@@ -27,9 +36,12 @@ public class List004Principal01 extends Application {
 
             // Aplica o CSS, se existir
             try {
-                scene.getStylesheets().add(
-                        getClass().getResource("/br/edu/ifpr/gep/view/DesignPanel.css").toExternalForm()
-                );
+                URL cssUrl = getClass().getResource("/br/edu/ifpr/gep/view/DesignPanel.css");
+                if (cssUrl != null) {
+                    scene.getStylesheets().add(cssUrl.toExternalForm());
+                } else {
+                    System.err.println("Aviso: CSS não encontrado: /br/edu/ifpr/gep/view/DesignPanel.css");
+                }
             } catch (NullPointerException e) {
                 System.err.println("Aviso: CSS não encontrado: /br/edu/ifpr/gep/view/DesignPanel.css");
             }
@@ -39,7 +51,8 @@ public class List004Principal01 extends Application {
             primaryStage.setScene(scene);
             primaryStage.show();
 
-        } catch (IOException e) {
+        } catch (Exception e) {  // Em vez de só IOException
+            e.printStackTrace();  // Para debug no console
             showAlert(Alert.AlertType.ERROR, "Erro crítico",
                     "Não foi possível carregar o arquivo FXML: " + e.getMessage());
         }

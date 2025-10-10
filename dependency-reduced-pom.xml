@@ -8,14 +8,14 @@
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.11.0</version>
+        <version>3.13.0</version>
         <configuration>
-          <release>21</release>
+          <release>${maven.compiler.release}</release>
         </configuration>
       </plugin>
       <plugin>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.5.1</version>
+        <version>3.6.0</version>
         <executions>
           <execution>
             <phase>package</phase>
@@ -40,12 +40,20 @@
           <mainClass>br.edu.ifpr.gep.aplicacao.List004Principal01</mainClass>
         </configuration>
       </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.1.0</version>
+        <configuration>
+          <mainClass>br.edu.ifpr.gep.aplicacao.List004Principal01</mainClass>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
   <properties>
-    <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <javafx.version>21.0.4</javafx.version>
-    <jackson.version>2.15.2</jackson.version>
+    <javafx.version>25</javafx.version>
+    <jackson.version>2.20.0</jackson.version>
   </properties>
 </project>

@@ -3,9 +3,12 @@ package br.edu.ifpr.gep.view;
 import br.edu.ifpr.gep.model.Portaria;
 import br.edu.ifpr.gep.model.repository.PortariaRepository;
 import br.edu.ifpr.gep.model.utils.EmissorTypes;
+import javafx.beans.InvalidationListener;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -25,7 +28,7 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.layout.AnchorPane;
 import javafx.stage.Stage;
-import javafx.util.converter.NumberStringConverter;
+import javafx.util.Callback;
 import java.net.URL;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -41,7 +44,7 @@ public class MainView implements Initializable {
     @FXML private TableColumn<Portaria, String> colPortaria;
     @FXML private TableColumn<Portaria, String> colEmissor;
     @FXML private TableColumn<Portaria, Integer> colNumero;
-    @FXML private TableColumn<Portaria, LocalDate> colPublicacao;
+    @FXML private TableColumn<Portaria, String> colPublicacao;
     @FXML private TableColumn<Portaria, String> colNome;
     @FXML private Label lblStatus;
     @FXML private Button simularButton;
@@ -50,7 +53,6 @@ public class MainView implements Initializable {
     @FXML private Button excluirTodosButton;
     @FXML private Button voltarButton;
     @FXML private Button limparFiltroButton;
-    @FXML private Button todosButton;
     @FXML private Button portariaButton;
     @FXML private Button emissorButton;
     @FXML private Button numeroButton;
@@ -82,6 +84,7 @@ public class MainView implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        EmissorTypes.initialize();
         // Configura as colunas da tabela
         colNumero.setCellValueFactory(new PropertyValueFactory<>("numero"));
         colNome.setCellValueFactory(new PropertyValueFactory<>("membro"));
@@ -93,33 +96,26 @@ public class MainView implements Initializable {
             }
             return new SimpleStringProperty("");
         });
-        // Coluna Publicação
-        colPublicacao.setCellValueFactory(new PropertyValueFactory<>("publicacao"));
-        colPublicacao.setCellFactory(TextFieldTableCell.forTableColumn(new javafx.util.StringConverter<LocalDate>() {
-            @Override
-            public String toString(LocalDate object) {
-                return object != null ? object.format(dtf) : "";
+        // Coluna Publicação personalizada (formato dd/MM/yyyy)
+        colPublicacao.setCellValueFactory(cellData -> Bindings.createStringBinding(() -> {
+            Portaria portaria = cellData.getValue();
+            if (portaria != null && portaria.getPublicacao() != null) {
+                return portaria.getPublicacao().format(dtf);
             }
-
-            @Override
-            public LocalDate fromString(String string) {
-                if (string == null || string.isEmpty()) {
-                    return null;
-                }
-                try {
-                    return LocalDate.parse(string, dtf);
-                } catch (DateTimeParseException e) {
-                    return null;
-                }
-            }
+            return "";
         }));
+        // Torna coluna Publicação editável
+        colPublicacao.setCellFactory(TextFieldTableCell.forTableColumn());
         colPublicacao.setOnEditCommit(event -> {
-            Portaria portaria = event.getRowValue();
-            if (event.getNewValue() != null) {
-                portaria.setPublicacao(event.getNewValue());
+            try {
+                LocalDate newDate = LocalDate.parse(event.getNewValue(), dtf);
+                Portaria portaria = event.getRowValue();
+                portaria.setPublicacao(newDate);
                 repo.update(portaria);
-                updateTable();
-                lblStatus.setText("Data de publicação atualizada para: " + event.getNewValue().format(dtf));
+                updateTable(); // Recarrega para refletir mudanças
+                lblStatus.setText("Data de publicação atualizada para: " + newDate.format(dtf));
+            } catch (DateTimeParseException e) {
+                showAlert(Alert.AlertType.ERROR, "Erro", "Data inválida. Use o formato dd/MM/yyyy.");
             }
         });
         // Coluna "Portaria" personalizada (formato: "Portaria [Número]/[Ano]")
@@ -150,8 +146,51 @@ public class MainView implements Initializable {
             deleteFormAnchor.setVisible(false);
         }
         // Configura tabela de emissores
-        colEmissorIndex.setCellValueFactory(cellData -> new SimpleIntegerProperty(cellData.getValue().getIndex()));
-        colEmissorNome.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getNome()));
+        colEmissorIndex.setCellValueFactory(new Callback<TableColumn.CellDataFeatures<EmissorTypes, Integer>, ObservableValue<Integer>>() {
+            @Override
+            public ObservableValue<Integer> call(TableColumn.CellDataFeatures<EmissorTypes, Integer> cellData) {
+                EmissorTypes item = cellData.getValue();
+                if (item != null) {
+                    return new ObservableValue<Integer>() {
+                        @Override
+                        public void addListener(ChangeListener<? super Integer> changeListener) {
+
+                        }
+
+                        @Override
+                        public void removeListener(ChangeListener<? super Integer> changeListener) {
+
+                        }
+
+                        @Override
+                        public Integer getValue() {
+                            return 0;
+                        }
+
+                        @Override
+                        public void addListener(InvalidationListener invalidationListener) {
+
+                        }
+
+                        @Override
+                        public void removeListener(InvalidationListener invalidationListener) {
+
+                        }
+                    };
+                }
+                return null;
+            }
+        });
+        colEmissorNome.setCellValueFactory(new Callback<TableColumn.CellDataFeatures<EmissorTypes, String>, ObservableValue<String>>() {
+            @Override
+            public ObservableValue<String> call(TableColumn.CellDataFeatures<EmissorTypes, String> cellData) {
+                EmissorTypes item = cellData.getValue();
+                if (item != null) {
+                    return new SimpleStringProperty(item.getNome());
+                }
+                return null;
+            }
+        });
         emissorTable.setItems(FXCollections.observableArrayList(EmissorTypes.values()));
     }
 
@@ -293,8 +332,8 @@ public class MainView implements Initializable {
             }
             Integer ano = Integer.parseInt(anoStr);
 
-            EmissorTypes emissor = EmissorTypes.fromValue(index);
-            if (repo.delete(emissor.getNome(), num, ano)) {
+            String emissorNome = EmissorTypes.fromValue(index).getNome();
+            if (repo.delete(emissorNome, num, ano)) {
                 showAlert(Alert.AlertType.INFORMATION, "Sucesso", "Portaria excluída com sucesso!");
                 updateTable();
                 cancelarExclusao(); // Limpa e esconde após sucesso
@@ -362,8 +401,8 @@ public class MainView implements Initializable {
             if (num == null) return;
             Integer ano = promptInteger("Consultar Portaria", "Digite o ano:", true);
             if (ano == null) return;
-            EmissorTypes emissor = EmissorTypes.fromValue(index);
-            Optional<Portaria> opt = repo.findPortaria(emissor.getNome(), num, ano);
+            String emissorNome = EmissorTypes.fromValue(index).getNome();
+            Optional<Portaria> opt = repo.findPortaria(emissorNome, num, ano);
             if (opt.isPresent()) {
                 dados.setAll(List.of(opt.get())); // Mostra só essa
                 tabPane.getSelectionModel().select(0);
