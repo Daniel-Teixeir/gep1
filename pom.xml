@@ -2,18 +2,15 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
     <groupId>br.edu.ifpr</groupId>
     <artifactId>gep2</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>21</maven.compiler.release>
-        <javafx.version>21.0.4</javafx.version>
-        <jackson.version>2.15.2</jackson.version>
+        <maven.compiler.release>25</maven.compiler.release>
+        <javafx.version>25</javafx.version>
+        <jackson.version>2.20.0</jackson.version>
     </properties>
-
     <dependencies>
         <!-- JavaFX -->
         <dependency>
@@ -26,7 +23,6 @@
             <artifactId>javafx-fxml</artifactId>
             <version>${javafx.version}</version>
         </dependency>
-
         <!-- Jackson -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -39,24 +35,22 @@
             <version>${jackson.version}</version>
         </dependency>
     </dependencies>
-
     <build>
         <plugins>
             <!-- Compilador -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
+                <version>3.14.0</version>
                 <configuration>
-                    <release>21</release>
+                    <release>25</release>
                 </configuration>
             </plugin>
-
             <!-- Shade Plugin para fat jar -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.1</version>
+                <version>3.6.0</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -73,7 +67,6 @@
                     </execution>
                 </executions>
             </plugin>
-
             <!-- JavaFX Maven Plugin (opcional, para rodar com mvn javafx:run) -->
             <plugin>
                 <groupId>org.openjfx</groupId>
@@ -81,6 +74,9 @@
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>br.edu.ifpr.gep.aplicacao.List004Principal01</mainClass>
+                    <options>
+                        <option>--enable-native-access=javafx.graphics</option>
+                    </options>
                 </configuration>
             </plugin>
         </plugins>

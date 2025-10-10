@@ -4,6 +4,7 @@ import br.edu.ifpr.gep.model.Portaria;
 import br.edu.ifpr.gep.model.repository.PortariaRepository;
 import br.edu.ifpr.gep.model.utils.EmissorTypes;
 import javafx.beans.binding.Bindings;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -22,7 +23,9 @@ import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.control.cell.TextFieldTableCell;
+import javafx.scene.layout.AnchorPane;
 import javafx.stage.Stage;
+import javafx.util.converter.NumberStringConverter;
 import java.net.URL;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -33,19 +36,16 @@ import java.util.ResourceBundle;
 
 public class MainView implements Initializable {
     private PortariaRepository repo = PortariaRepository.INSTANCE;
-
     @FXML private TabPane tabPane;
     @FXML private TableView<Portaria> tableView;
     @FXML private TableColumn<Portaria, String> colPortaria;
     @FXML private TableColumn<Portaria, String> colEmissor;
     @FXML private TableColumn<Portaria, Integer> colNumero;
-    @FXML private TableColumn<Portaria, String> colPublicacao;
+    @FXML private TableColumn<Portaria, LocalDate> colPublicacao;
     @FXML private TableColumn<Portaria, String> colNome;
     @FXML private Label lblStatus;
-
     @FXML private Button simularButton;
     @FXML private Button incluirButton;
-    @FXML private Button alterarButton;
     @FXML private Button excluirButton;
     @FXML private Button excluirTodosButton;
     @FXML private Button voltarButton;
@@ -57,49 +57,79 @@ public class MainView implements Initializable {
     @FXML private Button publicacaoButton;
     @FXML private Button periodoButton;
     @FXML private Button nomeButton;
-
-    @FXML private TextField tfEmissor;
+    // -- Incluir --
+    @FXML private TextField tfindiceemissor;
     @FXML private TextField tfNumero;
-    @FXML private TextField tfAno;
+    @FXML private TextField tfDataPublicacao;
     @FXML private TextField tfMembro;
-    @FXML private Button btnAplicarAlteracao;
-
+    @FXML private AnchorPane addFormAnchor;
+    @FXML private Button btnCancelar;
+    @FXML private Button btnConfirmar;
+    // -- Excluir --
+    @FXML private TextField tfDeleteIndiceEmissor;
+    @FXML private TextField tfDeleteNumero;
+    @FXML private TextField tfDeleteAno;
+    @FXML private AnchorPane deleteFormAnchor;
+    @FXML private Button btnDeleteCancelar;
+    @FXML private Button btnDeleteConfirmar;
+    // -- Emissores --
+    @FXML private TableView<EmissorTypes> emissorTable;
+    @FXML private TableColumn<EmissorTypes, Integer> colEmissorIndex;
+    @FXML private TableColumn<EmissorTypes, String> colEmissorNome;
+    @FXML private Button addEmissorButton;
     private final ObservableList<Portaria> dados = FXCollections.observableArrayList();
+    private final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         // Configura as colunas da tabela
         colNumero.setCellValueFactory(new PropertyValueFactory<>("numero"));
         colNome.setCellValueFactory(new PropertyValueFactory<>("membro"));
-
-        // Coluna Emissor personalizada (nome do enum)
+        // Coluna Emissor personalizada (nome do tipo)
         colEmissor.setCellValueFactory(cellData -> {
             Portaria portaria = cellData.getValue();
             if (portaria != null && portaria.getEmissor() != null) {
-                return new SimpleStringProperty(portaria.getEmissor().nome());
+                return new SimpleStringProperty(portaria.getEmissor().getNome());
             }
             return new SimpleStringProperty("");
         });
-
-        // Coluna Publicação personalizada (formato dd/MM/yyyy)
-        colPublicacao.setCellValueFactory(cellData -> Bindings.createStringBinding(() -> {
-            Portaria portaria = cellData.getValue();
-            if (portaria != null && portaria.getPublicacao() != null) {
-                return portaria.getPublicacao().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        // Coluna Publicação
+        colPublicacao.setCellValueFactory(new PropertyValueFactory<>("publicacao"));
+        colPublicacao.setCellFactory(TextFieldTableCell.forTableColumn(new javafx.util.StringConverter<LocalDate>() {
+            @Override
+            public String toString(LocalDate object) {
+                return object != null ? object.format(dtf) : "";
             }
-            return "";
-        }));
 
+            @Override
+            public LocalDate fromString(String string) {
+                if (string == null || string.isEmpty()) {
+                    return null;
+                }
+                try {
+                    return LocalDate.parse(string, dtf);
+                } catch (DateTimeParseException e) {
+                    return null;
+                }
+            }
+        }));
+        colPublicacao.setOnEditCommit(event -> {
+            Portaria portaria = event.getRowValue();
+            if (event.getNewValue() != null) {
+                portaria.setPublicacao(event.getNewValue());
+                repo.update(portaria);
+                updateTable();
+                lblStatus.setText("Data de publicação atualizada para: " + event.getNewValue().format(dtf));
+            }
+        });
         // Coluna "Portaria" personalizada (formato: "Portaria [Número]/[Ano]")
         colPortaria.setCellValueFactory(cellData -> {
             Portaria portaria = cellData.getValue();
-            if (portaria != null) {
-                return Bindings.createStringBinding(() ->
-                        "Portaria " + portaria.getNumero() + "/" + portaria.getPublicacao().getYear());
+            if (portaria != null && portaria.getPublicacao() != null) {
+                return new SimpleStringProperty("Portaria " + portaria.getNumero() + "/" + portaria.getPublicacao().getYear());
             }
-            return Bindings.createStringBinding(() -> "");
+            return new SimpleStringProperty("");
         });
-
         // Torna tabela editável e configura edição inline para Nome
         tableView.setEditable(true);
         colNome.setCellFactory(TextFieldTableCell.forTableColumn());
@@ -110,20 +140,19 @@ public class MainView implements Initializable {
             updateTable(); // Recarrega para refletir mudanças
             lblStatus.setText("Membro atualizado para: " + event.getNewValue());
         });
-
-        // Listener para seleção na tabela (preenche form de editar)
-        tableView.getSelectionModel().selectedItemProperty().addListener((obs, old, newValue) -> {
-            if (newValue != null) {
-                tfEmissor.setText(String.valueOf(newValue.getEmissor().index()));
-                tfNumero.setText(newValue.getNumero().toString());
-                tfAno.setText(String.valueOf(newValue.getPublicacao().getYear()));
-                tfMembro.setText(newValue.getMembro());
-                lblStatus.setText("Editando: " + newValue.getMembro());
-            }
-        });
-
         tableView.setItems(dados);
         updateTable();
+        // Inicialmente, esconde os formulários
+        if (addFormAnchor != null) {
+            addFormAnchor.setVisible(false);
+        }
+        if (deleteFormAnchor != null) {
+            deleteFormAnchor.setVisible(false);
+        }
+        // Configura tabela de emissores
+        colEmissorIndex.setCellValueFactory(cellData -> new SimpleIntegerProperty(cellData.getValue().getIndex()));
+        colEmissorNome.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getNome()));
+        emissorTable.setItems(FXCollections.observableArrayList(EmissorTypes.values()));
     }
 
     // Método para atualizar a tabela com dados do JSON
@@ -155,97 +184,155 @@ public class MainView implements Initializable {
 
     @FXML
     private void incluir() {
+        if (addFormAnchor != null) {
+            // Limpa os campos antes de mostrar
+            limparCampos();
+            addFormAnchor.setVisible(true);
+        }
+    }
+
+    @FXML
+    private void confirmarInclusao() {
         try {
-            Integer index = promptInteger("Incluir Portaria", "Digite o índice do emissor (ex: 1 para Reitoria):", true);
-            if (index == null) {
-                showAlert(Alert.AlertType.WARNING, "Ação Cancelada", "Operação de inclusão cancelada.");
+            // Índice do Emissor
+            String indiceStr = tfindiceemissor.getText().trim();
+            if (indiceStr.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Erro", "O campo 'Índice do Emissor' não pode estar vazio.");
+                return;
+            }
+            Integer indice = Integer.parseInt(indiceStr);
+
+            // Número
+            String numeroStr = tfNumero.getText().trim();
+            if (numeroStr.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Erro", "O campo 'Número' não pode estar vazio.");
+                return;
+            }
+            Integer numero = Integer.parseInt(numeroStr);
+
+            // Data
+            String dataStr = tfDataPublicacao.getText().trim();
+            if (dataStr.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Erro", "O campo 'Data de Publicação' não pode estar vazio.");
+                return;
+            }
+            LocalDate data = LocalDate.parse(dataStr); // Formato yyyy-MM-dd
+
+            // Membro
+            String membro = tfMembro.getText().trim();
+            if (membro.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Erro", "O campo 'Membro' não pode estar vazio.");
                 return;
             }
 
-            Integer num = promptInteger("Incluir Portaria", "Digite o número:", true);
-            if (num == null) return;
-
-            LocalDate data = promptDate("Incluir Portaria", "Digite a data de publicação (yyyy-mm-dd):", true);
-            if (data == null) return;
-
-            String membro = promptInput("Incluir Portaria", "Digite o membro:", true);
-            if (membro == null) return;
-
-            Portaria portaria = new Portaria(index, num, data, membro);
+            // Criação e inserção da Portaria
+            Portaria portaria = new Portaria(indice, numero, data, membro);
             if (repo.insert(portaria)) {
                 showAlert(Alert.AlertType.INFORMATION, "Sucesso", "Portaria incluída com sucesso!");
                 updateTable();
+                cancelarInclusao(); // Limpa e esconde após sucesso
             } else {
                 showAlert(Alert.AlertType.ERROR, "Erro", "Erro ao incluir portaria (já existe ou dados inválidos).");
             }
+        } catch (NumberFormatException e) {
+            showAlert(Alert.AlertType.ERROR, "Erro", "Índice do Emissor e Número devem ser números válidos.");
+        } catch (DateTimeParseException e) {
+            showAlert(Alert.AlertType.ERROR, "Erro", "Data inválida. Use o formato yyyy-MM-dd.");
         } catch (Exception e) {
-            System.err.println("Erro na inclusão: " + e.getMessage());
             showAlert(Alert.AlertType.ERROR, "Erro", "Erro inesperado: " + e.getMessage());
         }
     }
 
     @FXML
-    private void alterar() {
-        try {
-            Integer index = Integer.parseInt(tfEmissor.getText());
-            Integer num = Integer.parseInt(tfNumero.getText());
-            Integer ano = Integer.parseInt(tfAno.getText());
-            String novoMembro = tfMembro.getText().trim();
-
-            if (index == null || num == null || ano == null || novoMembro.isEmpty()) {
-                showAlert(Alert.AlertType.ERROR, "Erro", "Preencha todos os campos.");
-                return;
-            }
-
-            String emissorNome = EmissorTypes.fromValue(index).nome();
-            Optional<Portaria> opt = repo.findPortaria(emissorNome, num, ano);
-            if (opt.isPresent()) {
-                Portaria portaria = opt.get();
-                portaria.setMembro(novoMembro);
-                if (repo.update(portaria)) {
-                    showAlert(Alert.AlertType.INFORMATION, "Sucesso", "Portaria alterada!");
-                    updateTable();
-                    tabPane.getSelectionModel().select(0);
-                    lblStatus.setText("Alteração aplicada com sucesso.");
-                    tfEmissor.clear(); tfNumero.clear(); tfAno.clear(); tfMembro.clear();
-                } else {
-                    showAlert(Alert.AlertType.ERROR, "Erro", "Erro ao alterar.");
-                }
-            } else {
-                showAlert(Alert.AlertType.ERROR, "Erro", "Portaria não encontrada.");
-            }
-        } catch (NumberFormatException e) {
-            showAlert(Alert.AlertType.ERROR, "Erro", "Índice, número ou ano inválidos.");
-        } catch (Exception e) {
-            showAlert(Alert.AlertType.ERROR, "Erro", "Erro inesperado: " + e.getMessage());
+    private void cancelarInclusao() {
+        limparCampos();
+        if (addFormAnchor != null) {
+            addFormAnchor.setVisible(false);
         }
+    }
+
+    private void limparCampos() {
+        if (tfindiceemissor != null) tfindiceemissor.clear();
+        if (tfNumero != null) tfNumero.clear();
+        if (tfDataPublicacao != null) tfDataPublicacao.clear();
+        if (tfMembro != null) tfMembro.clear();
     }
 
     @FXML
     private void excluir() {
+        if (deleteFormAnchor != null) {
+            limparDeleteCampos();
+            deleteFormAnchor.setVisible(true);
+        }
+    }
+
+    @FXML
+    private void confirmarExclusao() {
         try {
-            Integer index = promptInteger("Excluir Portaria", "Digite o índice do emissor:", true);
-            if (index == null) {
-                showAlert(Alert.AlertType.WARNING, "Ação Cancelada", "Operação de exclusão cancelada.");
+            // Índice do Emissor
+            String indiceStr = tfDeleteIndiceEmissor.getText().trim();
+            if (indiceStr.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Erro", "O campo 'Índice do Emissor' não pode estar vazio.");
                 return;
             }
+            Integer index = Integer.parseInt(indiceStr);
 
-            Integer num = promptInteger("Excluir Portaria", "Digite o número:", true);
-            if (num == null) return;
+            // Número
+            String numeroStr = tfDeleteNumero.getText().trim();
+            if (numeroStr.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Erro", "O campo 'Número' não pode estar vazio.");
+                return;
+            }
+            Integer num = Integer.parseInt(numeroStr);
 
-            Integer ano = promptInteger("Excluir Portaria", "Digite o ano:", true);
-            if (ano == null) return;
+            // Ano
+            String anoStr = tfDeleteAno.getText().trim();
+            if (anoStr.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Erro", "O campo 'Ano' não pode estar vazio.");
+                return;
+            }
+            Integer ano = Integer.parseInt(anoStr);
 
-            String emissorNome = EmissorTypes.fromValue(index).nome();
-            if (repo.delete(emissorNome, num, ano)) {
+            EmissorTypes emissor = EmissorTypes.fromValue(index);
+            if (repo.delete(emissor.getNome(), num, ano)) {
                 showAlert(Alert.AlertType.INFORMATION, "Sucesso", "Portaria excluída com sucesso!");
                 updateTable();
+                cancelarExclusao(); // Limpa e esconde após sucesso
             } else {
                 showAlert(Alert.AlertType.ERROR, "Erro", "Portaria não encontrada.");
             }
+        } catch (NumberFormatException e) {
+            showAlert(Alert.AlertType.ERROR, "Erro", "Índice do Emissor, Número e Ano devem ser números válidos.");
         } catch (Exception e) {
-            System.err.println("Erro na exclusão: " + e.getMessage());
             showAlert(Alert.AlertType.ERROR, "Erro", "Erro inesperado: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void cancelarExclusao() {
+        limparDeleteCampos();
+        if (deleteFormAnchor != null) {
+            deleteFormAnchor.setVisible(false);
+        }
+    }
+
+    private void limparDeleteCampos() {
+        if (tfDeleteIndiceEmissor != null) tfDeleteIndiceEmissor.clear();
+        if (tfDeleteNumero != null) tfDeleteNumero.clear();
+        if (tfDeleteAno != null) tfDeleteAno.clear();
+    }
+
+    @FXML
+    private void adicionarEmissor() {
+        String nome = promptInput("Adicionar Emissor", "Digite o nome do novo emissor:", true);
+        if (nome != null && !nome.trim().isEmpty()) {
+            try {
+                EmissorTypes newEmissor = EmissorTypes.add(nome.trim());
+                emissorTable.setItems(FXCollections.observableArrayList(EmissorTypes.values()));
+                showAlert(Alert.AlertType.INFORMATION, "Sucesso", "Emissor '" + nome.trim() + "' adicionado com índice " + newEmissor.getIndex());
+            } catch (Exception e) {
+                showAlert(Alert.AlertType.ERROR, "Erro", "Erro ao adicionar emissor: " + e.getMessage());
+            }
         }
     }
 
@@ -271,15 +358,12 @@ public class MainView implements Initializable {
         try {
             Integer index = promptInteger("Consultar Portaria", "Digite o índice do emissor:", true);
             if (index == null) return;
-
             Integer num = promptInteger("Consultar Portaria", "Digite o número:", true);
             if (num == null) return;
-
             Integer ano = promptInteger("Consultar Portaria", "Digite o ano:", true);
             if (ano == null) return;
-
-            String emissorNome = EmissorTypes.fromValue(index).nome();
-            Optional<Portaria> opt = repo.findPortaria(emissorNome, num, ano);
+            EmissorTypes emissor = EmissorTypes.fromValue(index);
+            Optional<Portaria> opt = repo.findPortaria(emissor.getNome(), num, ano);
             if (opt.isPresent()) {
                 dados.setAll(List.of(opt.get())); // Mostra só essa
                 tabPane.getSelectionModel().select(0);
@@ -338,10 +422,8 @@ public class MainView implements Initializable {
         try {
             LocalDate start = promptDate("Consultar por Período", "Digite a data de início (yyyy-mm-dd):", true);
             if (start == null) return;
-
             LocalDate end = promptDate("Consultar por Período", "Digite a data de fim (yyyy-mm-dd):", true);
             if (end == null) return;
-
             List<Portaria> list = repo.findByPeriodo(start, end);
             dados.setAll(list);
             tabPane.getSelectionModel().select(0);
@@ -366,22 +448,18 @@ public class MainView implements Initializable {
     private void voltar() throws Exception {
         Stage stage = (Stage) voltarButton.getScene().getWindow();
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/br/edu/ifpr/gep/view/MainView.fxml"));
-
         if (loader.getLocation() == null) {
             showAlert(Alert.AlertType.ERROR, "Erro", "Arquivo FXML não encontrado.");
             return;
         }
-
         TabPane tabPaneNew = loader.load();
         Scene scene = new Scene(tabPaneNew, 1000, 700);
-
         var cssResource = getClass().getResource("/br/edu/ifpr/gep/view/MainView.css");
         if (cssResource != null) {
             scene.getStylesheets().add(cssResource.toExternalForm());
         } else {
             System.err.println("CSS não encontrado.");
         }
-
         stage.setScene(scene);
         stage.show();
     }
