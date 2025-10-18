@@ -13,4 +13,4 @@
 - Mudar o design para algo mais moderno
 - Adicionar uma opção de mudar a cor
 
-**Mais melhorias futuras**
+**A adicionar mais melhorias!**
