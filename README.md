@@ -3,7 +3,7 @@
 ### Melhorias:
 
 - Trocar o Jackson por MongoDB
-- No Editar e Incluir, apontar o erro
+- Ao fechar a 'janelinha' com a mensagem de erro, posicionar o cursor no campo referente ao erro
 - Concerta o problema de tamanho de tela
 - Concerta o problema de poder incluir datas futuras
 - Concertar o número do emissor 0
